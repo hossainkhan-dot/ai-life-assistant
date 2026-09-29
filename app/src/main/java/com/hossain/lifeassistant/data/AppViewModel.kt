@@ -33,6 +33,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _apiKey = MutableStateFlow(prefs.getString("openai_key", "") ?: "")
     val apiKey: StateFlow<String> = _apiKey
 
+    private fun currentKey(): String = prefs.getString("openai_key", "") ?: ""
+
     fun saveKey(k: String) {
         val v = k.trim()
         prefs.edit().putString("openai_key", v).apply()
@@ -52,7 +54,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun startRecording() {
-        if (_apiKey.value.isBlank()) {
+        if (currentKey().isBlank()) {
             showMessage("আগে Settings-এ OpenAI API key দিন", false)
             return
         }
@@ -71,7 +73,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             showMessage("খুব ছোট রেকর্ড। বাটন ধরে রেখে কথা বলুন", false)
             return
         }
-        val key = _apiKey.value
+        val key = currentKey()
         viewModelScope.launch {
             try {
                 _voice.value = VoiceState.Processing("Transcribing…")
