@@ -86,6 +86,7 @@ fun AppRoot() {
 fun HomeScreen(vm: AppViewModel = viewModel()) {
     val tasks by vm.tasks.collectAsState()
     val diary by vm.diary.collectAsState()
+    val reminders by vm.reminders.collectAsState()
     val now = LocalTime.now()
     val today = LocalDate.now().toString()
     val nowStr = String.format(Locale.ENGLISH, "%02d:%02d", now.hour, now.minute)
@@ -101,7 +102,9 @@ fun HomeScreen(vm: AppViewModel = viewModel()) {
     val todayDiary = diary.filter { it.date == today }.sortedBy { it.time }
     val next = tasks
         .filter { !it.done && it.date == today && it.time.isNotBlank() && it.time >= nowStr }
-        .minByOrNull { it.time }?.time ?: "—"
+        .map { it.time }
+        .plus(reminders.filter { it.date == today && it.time.isNotBlank() && it.time >= nowStr }.map { it.time })
+        .minOrNull() ?: "—"
 
     Column(
         Modifier
@@ -128,7 +131,7 @@ fun HomeScreen(vm: AppViewModel = viewModel()) {
                 Stat(completed.toString(), "Completed")
                 Stat(pending.toString(), "Pending")
                 Stat(todayDiary.size.toString(), "Activities")
-                Stat(next, "Next Task")
+                Stat(next, "Next")
             }
         }
         if (todayDiary.isNotEmpty()) {
@@ -151,7 +154,8 @@ fun HomeScreen(vm: AppViewModel = viewModel()) {
             }
         }
         Spacer(Modifier.weight(1f))
-        TapAndTalkButton()
+        VoiceConfirmDialog(vm)
+        TapAndTalkButton(vm)
         Spacer(Modifier.weight(1f))
     }
 }

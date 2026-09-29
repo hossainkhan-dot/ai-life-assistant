@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hossain.lifeassistant.data.AppViewModel
 import com.hossain.lifeassistant.data.DiaryEntry
+import com.hossain.lifeassistant.data.ReminderEntity
 import com.hossain.lifeassistant.data.TaskEntity
 import java.time.LocalDate
 import java.time.YearMonth
@@ -57,76 +58,6 @@ private fun ChipRow(options: List<String>, selected: String, onPick: (String) ->
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(options) { c ->
             FilterChip(selected = c == selected, onClick = { onPick(c) }, label = { Text(c) })
-        }
-    }
-}
-
-// ---------- Home: Tap & Talk ----------
-@Composable
-fun TapAndTalkButton() {
-    var listening by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("TAP & TALK") }
-
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val s by pulse.animateFloat(
-        1f, 1.12f,
-        infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "s"
-    )
-
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (listening) Waveform() else Spacer(Modifier.height(40.dp))
-        Spacer(Modifier.height(16.dp))
-        Box(
-            Modifier
-                .size(140.dp)
-                .scale(if (listening) s else 1f)
-                .clip(CircleShape)
-                .background(
-                    if (listening) MaterialTheme.colorScheme.secondary
-                    else MaterialTheme.colorScheme.primary
-                )
-                .pointerInput(Unit) {
-                    detectTapGestures(onPress = {
-                        listening = true
-                        status = "Listening…"
-                        tryAwaitRelease()
-                        listening = false
-                        status = "Voice সংযোগ পরের ধাপে"
-                    })
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Filled.Mic, "Tap and Talk",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(64.dp)
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Text(status, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-    }
-}
-
-@Composable
-fun Waveform() {
-    val t = rememberInfiniteTransition(label = "wave")
-    Row(
-        Modifier.height(40.dp),
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        repeat(9) { i ->
-            val h by t.animateFloat(
-                8f, 40f,
-                infiniteRepeatable(tween(400 + i * 60), RepeatMode.Reverse), label = "b$i"
-            )
-            Box(
-                Modifier
-                    .width(5.dp)
-                    .height(h.dp)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(MaterialTheme.colorScheme.primary)
-            )
         }
     }
 }
@@ -300,6 +231,8 @@ fun TasksScreen(vm: AppViewModel = viewModel()) {
     val tasks by vm.tasks.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
     val today = LocalDate.now().toString()
+    val reminders by vm.reminders.collectAsState()
+    val upRem = reminders.filter { it.date >= today }
     val todayList = tasks.filter { !it.done && it.date <= today }
     val upcoming = tasks.filter { !it.done && it.date > today }
     val completed = tasks.filter { it.done }
@@ -315,6 +248,7 @@ fun TasksScreen(vm: AppViewModel = viewModel()) {
                 taskSection("Today's Tasks", todayList, vm)
                 taskSection("Upcoming Tasks", upcoming, vm)
                 taskSection("Completed Tasks", completed, vm)
+                reminderSection(upRem, vm)
             }
         }
         FloatingActionButton(
@@ -335,10 +269,11 @@ fun TasksScreen(vm: AppViewModel = viewModel()) {
 fun CalendarScreen(vm: AppViewModel = viewModel()) {
     val diary by vm.diary.collectAsState()
     val tasks by vm.tasks.collectAsState()
+    val reminders by vm.reminders.collectAsState()
     var month by remember { mutableStateOf(YearMonth.now()) }
     var selected by remember { mutableStateOf(LocalDate.now()) }
-    val marked = remember(diary, tasks) {
-        diary.map { it.date }.toSet() + tasks.map { it.date }.toSet()
+    val marked = remember(diary, tasks, reminders) {
+        diary.map { it.date }.toSet() + tasks.map { it.date }.toSet() + reminders.map { it.date }.toSet()
     }
     val monthName = month.month.getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH)
 
@@ -396,6 +331,7 @@ fun CalendarScreen(vm: AppViewModel = viewModel()) {
         val sel = selected.toString()
         val dayDiary = diary.filter { it.date == sel }.sortedBy { it.time }
         val dayTasks = tasks.filter { it.date == sel }
+        val dayRem = reminders.filter { it.date == sel }.sortedBy { it.time }
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surface),
@@ -403,8 +339,9 @@ fun CalendarScreen(vm: AppViewModel = viewModel()) {
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(sel, fontWeight = FontWeight.Bold)
-                if (dayDiary.isEmpty() && dayTasks.isEmpty()) EmptyHint("এই দিনে কিছু নেই")
+                if (dayDiary.isEmpty() && dayTasks.isEmpty() && dayRem.isEmpty()) EmptyHint("এই দিনে কিছু নেই")
                 dayDiary.forEach { Text("📝 ${it.time}  ${it.content}") }
+                dayRem.forEach { Text("${it.time}  ${it.title}") }
                 dayTasks.forEach {
                     val mark = if (it.done) "☑" else "☐"
                     Text("$mark ${it.title}")
@@ -416,7 +353,7 @@ fun CalendarScreen(vm: AppViewModel = viewModel()) {
 
 // ---------- Settings ----------
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(vm: AppViewModel = viewModel()) {
     var floating by remember { mutableStateOf(false) }
     val entries = listOf(
         "Profile", "Language", "Theme", "AI Settings", "Voice Settings",
@@ -424,6 +361,7 @@ fun SettingsScreen() {
     )
     LazyColumn(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { Text("Settings", fontSize = 26.sp, fontWeight = FontWeight.Bold) }
+        item { ApiKeyCard(vm) }
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -445,6 +383,37 @@ fun SettingsScreen() {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(name, Modifier.weight(1f), fontSize = 16.sp)
                     Icon(Icons.Filled.ChevronRight, null)
+                }
+            }
+        }
+    }
+}
+
+// ---------- Reminders & Events (Tasks স্ক্রিনে) ----------
+private fun LazyListScope.reminderSection(list: List<ReminderEntity>, vm: AppViewModel) {
+    item(key = "sec_rem") {
+        Text("Reminders & Events", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    }
+    if (list.isEmpty()) {
+        item(key = "empty_rem") { EmptyHint("কিছু নেই") }
+    } else {
+        items(list, key = { "r${it.id}" }) { r ->
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(3.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(r.title, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        val tp = if (r.time.isBlank()) "" else " • ${r.time}"
+                        Text(
+                            "${r.date}$tp", fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                        )
+                    }
+                    IconButton(onClick = { vm.deleteReminder(r) }) { Icon(Icons.Filled.Delete, "Delete") }
                 }
             }
         }
