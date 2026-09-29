@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -13,17 +12,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.hossain.lifeassistant.data.AppViewModel
 import com.hossain.lifeassistant.ui.*
 import com.hossain.lifeassistant.ui.theme.LifeAssistantTheme
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,7 +83,26 @@ fun AppRoot() {
 }
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(vm: AppViewModel = viewModel()) {
+    val tasks by vm.tasks.collectAsState()
+    val diary by vm.diary.collectAsState()
+    val now = LocalTime.now()
+    val today = LocalDate.now().toString()
+    val nowStr = String.format(Locale.ENGLISH, "%02d:%02d", now.hour, now.minute)
+    val greeting = when {
+        now.hour < 12 -> "Good Morning"
+        now.hour < 17 -> "Good Afternoon"
+        else -> "Good Evening"
+    }
+    val dateText = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH))
+
+    val completed = tasks.count { it.done && it.date == today }
+    val pending = tasks.count { !it.done && it.date <= today }
+    val todayDiary = diary.filter { it.date == today }.sortedBy { it.time }
+    val next = tasks
+        .filter { !it.done && it.date == today && it.time.isNotBlank() && it.time >= nowStr }
+        .minByOrNull { it.time }?.time ?: "—"
+
     Column(
         Modifier
             .fillMaxSize()
@@ -87,8 +111,8 @@ fun HomeScreen() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Column(Modifier.fillMaxWidth()) {
-            Text("Good Morning, HOSSAIN 👋", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text("Wednesday, 30 September 2026", color = MaterialTheme.colorScheme.primary)
+            Text("$greeting, HOSSAIN 👋", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(dateText, color = MaterialTheme.colorScheme.primary)
         }
         Spacer(Modifier.height(20.dp))
         Card(
@@ -101,9 +125,29 @@ fun HomeScreen() {
                 Modifier.padding(20.dp).fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Stat("5", "Completed")
-                Stat("2", "Pending")
-                Stat("2:00 PM", "Next Reminder")
+                Stat(completed.toString(), "Completed")
+                Stat(pending.toString(), "Pending")
+                Stat(todayDiary.size.toString(), "Activities")
+                Stat(next, "Next Task")
+            }
+        }
+        if (todayDiary.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Today's Timeline", fontWeight = FontWeight.Bold)
+                    todayDiary.takeLast(3).forEach { e ->
+                        Row {
+                            Text(e.time, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(10.dp))
+                            Text(e.content, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
             }
         }
         Spacer(Modifier.weight(1f))
@@ -117,21 +161,5 @@ private fun Stat(value: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-    }
-}
-
-@Composable
-fun PlaceholderScreen(title: String, subtitle: String) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(subtitle, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
     }
 }
