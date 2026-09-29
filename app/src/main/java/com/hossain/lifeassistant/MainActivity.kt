@@ -22,6 +22,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.hossain.lifeassistant.ui.*
 import com.hossain.lifeassistant.ui.theme.LifeAssistantTheme
 
 class MainActivity : ComponentActivity() {
@@ -68,10 +69,10 @@ fun AppRoot() {
     ) { pad ->
         NavHost(nav, startDestination = "home", modifier = Modifier.padding(pad)) {
             composable("home") { HomeScreen() }
-            composable("diary") { PlaceholderScreen("Diary", "আপনার দিনের Timeline এখানে দেখা যাবে") }
-            composable("tasks") { PlaceholderScreen("Tasks", "Today / Upcoming / Completed") }
-            composable("calendar") { PlaceholderScreen("Calendar", "মাসের Calendar এখানে আসবে") }
-            composable("settings") { PlaceholderScreen("Settings", "Theme, Language, Privacy ...") }
+            composable("diary") { DiaryScreen() }
+            composable("tasks") { TasksScreen() }
+            composable("calendar") { CalendarScreen() }
+            composable("settings") { SettingsScreen() }
         }
     }
 }
@@ -106,22 +107,7 @@ fun HomeScreen() {
             }
         }
         Spacer(Modifier.weight(1f))
-        Box(
-            Modifier
-                .size(140.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Filled.Mic,
-                contentDescription = "Tap and Talk",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(64.dp)
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Text("TAP & TALK", fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        TapAndTalkButton()
         Spacer(Modifier.weight(1f))
     }
 }
